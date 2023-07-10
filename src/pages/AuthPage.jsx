@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Button, Col, Image, Row, Form, Modal } from "react-bootstrap";
-import axios from 'axios';
-import useLocalStorage from "use-local-storage";
 import { useNavigate } from "react-router-dom";
+import {
+    createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword, signInWithRedirect,
+} from "firebase/auth";
+import { AuthContext } from "../components/AuthProvider";
+import { GoogleAuthProvider, signInWithPopup  } from "firebase/auth";
+import { current } from "@reduxjs/toolkit";
 
 export default function AuthPage() {
     const loginImage = "https://sig1.co/img-twitter-1";
-    const url = "https://auth-back-end-chungmangjie200.sigma-school-full-stack.repl.co";
+    // const url = "https://auth-back-end-chungmangjie200.sigma-school-full-stack.repl.co";
 
     // Possible values: null (no modal shows), "Login", "SignUp"
     const [modalShow, setModalShow] = useState(null);
@@ -14,45 +18,56 @@ export default function AuthPage() {
     const handleShowLogin = () => setModalShow("Login");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [authToken,setAuthToken] = useLocalStorage("authToken", "");
-    const navigate = useNavigate();
 
-    useEffect(() => {
-        if(authToken) navigate('/profile')
-    },[authToken, navigate])
+    const auth = getAuth();
+    const navigate = useNavigate();
+    const {currentUser} = useContext(AuthContext);
+    const provider = new GoogleAuthProvider();
+
+
+    useEffect(()=> {
+        if (currentUser) navigate ("profile");
+    },[currentUser,navigate])
 
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.post(`${url}/login`, {username,password});
-            // res.data is not empty, and auth is true, and token is not empty
-            if (res.data && res.data.auth === true && res.data.token) {
-                setAuthToken(res.data.token)
-                console.log("login was successful, token saved")
-            }
-            console.log(res.data);
+            await signInWithEmailAndPassword(auth, username, password);
         } catch (error) {
-            console.error(error.stack);
-            alert(error.response.data.message);
+            console.error(error);
+            alert(error)
         }
     };
 
     const handleSignUp = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.post(`${url}/signup`, {username,password});
-            console.log(res.data);
+            const res = await createUserWithEmailAndPassword(
+                auth,
+                username,
+                password
+            );
+            console.log(res.user)
         } catch (error) {
-            console.error(error.stack);
-            if (error.response.status === 500) {
-                alert(error.response.data.error)
-            } else if (error.response.status === 400){
-                alert(error.response.data.message)
-            }
+            console.error(error);
+            alert(error)
         }
     };
 
     const handleClose = () => setModalShow(null);
+
+    //Google
+    const handleGoogle = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await signInWithPopup(auth, provider)
+            console.log(res);
+        } catch (error) {
+            console.error(error.stack);
+        }
+    };
+    
+    
 
     return (
         <Row>
@@ -64,7 +79,7 @@ export default function AuthPage() {
                 <p className="mt-5" style={{fontSize: 64}}>Happening Now</p>
                 <h2 className="my-5" style={{fontSize: 31}}>Join Twitter Today.</h2>
                 <Col sm={5} className="d-grid gap-2">
-                    <Button className="rounded-pill" variant="outline-dark">
+                    <Button className="rounded-pill" variant="outline-dark" onClick={handleGoogle}>
                         <i className="bi bi-google"></i> Sign up with Google
                     </Button>
                     <Button className="rounded-pill" variant="outline-dark">
