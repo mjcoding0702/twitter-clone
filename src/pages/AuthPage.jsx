@@ -1,73 +1,109 @@
 import { useContext, useEffect, useState } from "react";
 import { Button, Col, Image, Row, Form, Modal } from "react-bootstrap";
+import axios from 'axios';
+import useLocalStorage from "use-local-storage";
 import { useNavigate } from "react-router-dom";
-import {
-    createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword, signInWithRedirect,
-} from "firebase/auth";
+import {auth} from "../firebase"
 import { AuthContext } from "../components/AuthProvider";
-import { GoogleAuthProvider, signInWithPopup  } from "firebase/auth";
-import { current } from "@reduxjs/toolkit";
+import { FacebookAuthProvider, GoogleAuthProvider, createUserWithEmailAndPassword, fetchSignInMethodsForEmail, linkWithCredential, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect } from "@firebase/auth";
 
 export default function AuthPage() {
     const loginImage = "https://sig1.co/img-twitter-1";
-    // const url = "https://auth-back-end-chungmangjie200.sigma-school-full-stack.repl.co";
+    const url = "https://auth-back-end-chungmangjie200.sigma-school-full-stack.repl.co";
 
     // Possible values: null (no modal shows), "Login", "SignUp"
     const [modalShow, setModalShow] = useState(null);
     const handleShowSignUp = () => setModalShow("SignUp");
     const handleShowLogin = () => setModalShow("Login");
+    const handleResetPassword = () => setModalShow("Reset");
+
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [errorMessage, setErrorMessage] = useState("");
 
-    const auth = getAuth();
+    //Reset password
+    const handleResetPasswordEmail = async() => {
+        try{
+            const email = username;
+            alert("Email to reset password sent!")
+            await sendPasswordResetEmail(auth, email)
+        } catch(error){
+            console.log(error);
+        }
+    }
+
+    //Firebase
     const navigate = useNavigate();
     const {currentUser} = useContext(AuthContext);
+
+    //Google
     const provider = new GoogleAuthProvider();
 
+    const handleGoogleLogin = async () => {
+        try {
+            const result = await signInWithPopup(auth, provider);
+            console.log(result)
+        } catch(error) {
+            const errorCode = error.code;
+            const errMessage = error.message;
 
-    useEffect(()=> {
-        if (currentUser) navigate ("profile");
-    },[currentUser,navigate])
+            if (errorCode) setErrorMessage(errorCode);
+            if (errMessage) setErrorMessage(errMessage);
+        }
+        
+    }
+
+
+    const facebookProvider = new FacebookAuthProvider();
+    const handleFacebookLogin = async () => {
+        try {
+            const result = await signInWithPopup(auth, facebookProvider);
+            console.log("This is facebook")
+            console.log(result)
+        } catch(error) {
+            console.log(error);
+        }
+    };
+    
+
+
+    useEffect(() => {
+        if (currentUser){
+            navigate("/profile");
+        }
+    },[currentUser, navigate])
 
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            await signInWithEmailAndPassword(auth, username, password);
+            await signInWithEmailAndPassword(auth, username, password);  //It will trigger onAuthStateChanged in AuthProvider.jsx if the login is successful. If login successful, current user will be added, then it will redirect to profile page
         } catch (error) {
-            console.error(error);
-            alert(error)
+            const errorCode = error.code;
+            const errMessage = error.message;
+
+            if (errorCode) setErrorMessage(errorCode);
+            if (errMessage) setErrorMessage(errMessage);
         }
     };
 
     const handleSignUp = async (e) => {
         e.preventDefault();
         try {
-            const res = await createUserWithEmailAndPassword(
-                auth,
-                username,
-                password
-            );
-            console.log(res.user)
+            const response = await createUserWithEmailAndPassword(auth,username,password);
+            console.log(response.user);
         } catch (error) {
-            console.error(error);
-            alert(error)
+            const errorCode = error.code;
+            const errMessage = error.message;
+
+            if (errorCode) setErrorMessage(errorCode);
+            if (errMessage) setErrorMessage(errorCode);
         }
     };
 
-    const handleClose = () => setModalShow(null);
-
-    //Google
-    const handleGoogle = async (e) => {
-        e.preventDefault();
-        try {
-            const res = await signInWithPopup(auth, provider)
-            console.log(res);
-        } catch (error) {
-            console.error(error.stack);
-        }
-    };
-    
-    
+    const handleClose = () => {
+        setModalShow(null);
+        setErrorMessage("");
+    }
 
     return (
         <Row>
@@ -79,11 +115,11 @@ export default function AuthPage() {
                 <p className="mt-5" style={{fontSize: 64}}>Happening Now</p>
                 <h2 className="my-5" style={{fontSize: 31}}>Join Twitter Today.</h2>
                 <Col sm={5} className="d-grid gap-2">
-                    <Button className="rounded-pill" variant="outline-dark" onClick={handleGoogle}>
+                    <Button className="rounded-pill" variant="outline-dark" onClick={handleGoogleLogin}>
                         <i className="bi bi-google"></i> Sign up with Google
                     </Button>
-                    <Button className="rounded-pill" variant="outline-dark">
-                        <i className="bi bi-apple"></i> Sign up with Apple
+                    <Button className="rounded-pill" variant="outline-dark" onClick={handleFacebookLogin}>
+                        <i className="bi bi-facebook"></i> Sign up with Facebook
                     </Button>
                     <p style={{textAlign: "center"}}>or</p>
                     <Button className="rounded-pill" onClick={handleShowSignUp}>Create an account</Button>
@@ -95,13 +131,18 @@ export default function AuthPage() {
                     <Button className="rounded-pill" variant="outline-primary" onClick={handleShowLogin}>
                         Sign in
                     </Button>
+                    <Button className="rounded-pill" variant="outline-primary" onClick={handleResetPassword}>
+                        Reset Password
+                    </Button>
                 </Col>
                 <Modal show={modalShow !== null} onHide={handleClose} animation={false} centered>
                   <Modal.Body>
                     <h2 className='mb-4' style={{ fontWeight: "bold" }}>
-                      {modalShow === "SignUp"? "Create your account" : "Log in to your account"}
+                      {modalShow === "SignUp"? "Create your account" :modalShow === "Login"? "Log in to your account": "Reset Password"}
                     </h2>
-                    <Form className='d-grid gap-2 px-5' onSubmit={modalShow === "SignUp"? handleSignUp : handleLogin}>
+                    {errorMessage && <p className="text-danger text-sm">{errorMessage}</p>}
+                    <Form 
+                        className='d-grid gap-2 px-5' onSubmit={modalShow === "SignUp"? handleSignUp :modalShow === "Login"? handleLogin: handleResetPasswordEmail}>
                       <Form.Group className='mb-3' controlId='formBasicEmail'>
                         <Form.Control 
                             onChange={(e) => setUsername(e.target.value)}
@@ -110,12 +151,14 @@ export default function AuthPage() {
                         />
                       </Form.Group>
 
-                      <Form.Group className='mb-3' controlId='formBasicPassword'>
-                        <Form.Control 
-                            onChange={(e) => setPassword(e.target.value)}
-                            type='password' 
-                            placeholder='Enter Password' />
-                      </Form.Group>
+                      {modalShow!=="Reset" && 
+                        <Form.Group className='mb-3' controlId='formBasicPassword'>
+                            <Form.Control 
+                                onChange={(e) => setPassword(e.target.value)}
+                                type='password' 
+                                placeholder='Enter Password' />
+                        </Form.Group>
+                      }
                         <p style={{ fontSize: "12px" }}>
                         By signing up, you agree to the terms of Service and Privacy
                         Policy, including Cookie Use. Better Tweets may use your contact
@@ -127,7 +170,7 @@ export default function AuthPage() {
                         </p>
 
                         <Button className='rounded-pill' variant='outline-primary' type="submit">
-                            {modalShow === "SignUp" ? "Sign up" : "Log in"}
+                            {modalShow === "SignUp"? "Sign Up" :modalShow === "Login"? "Login": "Reset Password"}
                         </Button>
                     </Form>
                   </Modal.Body>
